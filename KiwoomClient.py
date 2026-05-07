@@ -99,6 +99,7 @@ class KiwoomClient:
         }
 
         payload = {
+            "dmst_stex_tp": "KRX",
             "stk_cd": etf_code,
             "ord_qty": quantity,
             "trde_tp": "3", # 시장가 매수
@@ -123,6 +124,7 @@ class KiwoomClient:
         }
 
         payload = {
+            "dmst_stex_tp": "KRX",
             "stk_cd": etf_code,
             "ord_qty": quantity,
             "trde_tp": "3", # 시장가 매도

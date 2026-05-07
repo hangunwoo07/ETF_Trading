@@ -52,19 +52,44 @@ class KiwoomWebsocketClient:
             return None
     
     async def register_etf(self, etf_code: str):
-        # headers = {
-        #     "api-id": "0B",
-        #     "authorization": f"Bearer {self.access_token}",
-        # }
-
         request = {
             "trnm": "REG",
             "grp_no": "1",
-            "refresh": "0",
+            "refresh": "1",
             "data": [
                 {
                     "item": [etf_code],
                     "type": ["0B"]
+                }
+            ]
+        }
+
+        await self.send_message(request)
+    
+    async def unregister_etf(self, etf_code: str):
+        request = {
+            "trnm": "REMOVE",
+            "grp_no": "1",
+            "refresh": "",
+            "data": [
+                {
+                    "item": [etf_code],
+                    "type": ["0B"]
+                }
+            ]
+        }
+
+        await self.send_message(request)
+    
+    async def register_market_time(self):
+        request = {
+            "trnm": "REG",
+            "grp_no": "1",
+            "refresh": "1",
+            "data": [
+                {
+                    "item": [""],
+                    "type": ["0s"]
                 }
             ]
         }
