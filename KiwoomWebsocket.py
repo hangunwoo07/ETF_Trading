@@ -44,10 +44,18 @@ class KiwoomWebsocketClient:
             raise RuntimeError("Websocket is not connected.")
         
         try:
-            response = await self.websocket.recv()
-            return json.loads(response)
+            while True:
+                response = await self.websocket.recv()
+                message = json.loads(response)
+
+                if message.get("trnm") == "PING":
+                    await self.websocket.send(json.dumps(message))
+                    continue
+
+                return message
         
         except Exception as e:
+            self.connected = False
             print(f"Error receiving message: {e}")
             return None
     
