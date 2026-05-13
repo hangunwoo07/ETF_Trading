@@ -11,6 +11,8 @@ class MarketTimeChecker:
         self.calendar = xcals.get_calendar("XKRX")
         self.date = datetime.now().date()
         self.now = datetime.now().time()
+        self.market_open_time = time(9, 0)
+        self.market_close_time = time(15, 30)
     
     def is_trading_day(self) -> bool:
         return self.calendar.is_session(pd.Timestamp(self.date))
@@ -19,10 +21,14 @@ class MarketTimeChecker:
         if not self.is_trading_day():
             return False
         
-        market_open_time = time(9, 0)
-        market_close_time = time(15, 30)
-
-        return market_open_time <= self.now <= market_close_time
+        return self.market_open_time <= self.now <= self.market_close_time
+    
+    def time_to_prepare(self) -> bool:
+        """Check if it's time to prepare for market open (30 minutes before)"""
+        if not self.is_trading_day():
+            return False
+        
+        return time(8, 30) <= self.now < self.market_open_time
 
 
 def main():
