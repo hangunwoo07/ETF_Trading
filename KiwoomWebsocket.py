@@ -74,7 +74,10 @@ class KiwoomWebsocketClient:
 
         await self.send_message(request)
     
-    async def unregister_etf(self, etf_code: str):
+    async def unregister_etf(self, etf_code: Optional[str]):
+        if etf_code is None:
+            return
+
         request = {
             "trnm": "REMOVE",
             "grp_no": "1",
