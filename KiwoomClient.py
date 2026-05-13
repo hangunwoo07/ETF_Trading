@@ -86,7 +86,7 @@ class KiwoomClient:
                 max_volume = volume
                 max_volume_etf = etf_code
             
-            time.sleep(3)
+            time.sleep(1)
 
         return max_volume_etf
     
