@@ -1,8 +1,12 @@
 from dotenv import load_dotenv
 from typing import List, Optional
+import logging
 import os
 import requests
 import time
+
+
+logger = logging.getLogger(__name__)
 
 
 class KiwoomClient:
@@ -31,8 +35,10 @@ class KiwoomClient:
         data = res.json()
 
         if data.get("return_code") != 0:
+            logger.error("Failed to fetch access token. response=%s", data)
             raise RuntimeError(f"Error when fetching access token: \n{data}")
         
+        logger.info("Fetched Kiwoom access token.")
         return data["token"]
 
     def check_deposit(self) -> int:
@@ -51,10 +57,12 @@ class KiwoomClient:
         data = res.json()
 
         if data.get("return_code") != 0:
-            print(f"Error when checking deposit: \n{data}")
+            logger.error("Failed to check deposit. response=%s", data)
             return -1
         
-        return int(data.get("entr"))
+        deposit = int(data.get("entr"))
+        logger.info("Checked deposit from Kiwoom API. deposit=%s", deposit)
+        return deposit
 
     def get_biggest_etf_volume(self, etf_list: List[str], track_range: int) -> str:
         url = f"{self.base_url}/api/dostk/etf"
@@ -76,11 +84,18 @@ class KiwoomClient:
             data = res.json()
 
             if data.get("return_code") != 0:
+                logger.error("Failed to fetch ETF data. etf_code=%s response=%s", etf_code, data)
                 raise RuntimeError(f"Error fetching data for {etf_code}: \n{data}")
 
             daily_data_list: List = data.get("etfdaly_trnsn", [])
             
             volume = sum(int(item.get("acc_trde_prica", 0)) for item in daily_data_list[:track_range])
+            logger.info(
+                "Calculated ETF recent volume. etf_code=%s track_range=%s volume=%s",
+                etf_code,
+                track_range,
+                volume,
+            )
 
             if volume > max_volume:
                 max_volume = volume
@@ -110,10 +125,15 @@ class KiwoomClient:
         data = res.json()
 
         if data.get("return_code") != 0:
-            print(f"Error placing order: \n{data}")
+            logger.error(
+                "Failed to place buy order. etf_code=%s quantity=%s response=%s",
+                etf_code,
+                quantity,
+                data,
+            )
             return
 
-        print(f"Order placed successfully: \n{data}")
+        logger.info("Placed buy order successfully. etf_code=%s quantity=%s response=%s", etf_code, quantity, data)
     
     def sell_etf(self, etf_code: str, quantity: str) -> str:
         url = f"{self.base_url}/api/dostk/ordr"
@@ -135,6 +155,13 @@ class KiwoomClient:
         data = res.json()
 
         if data.get("return_code") != 0:
+            logger.error(
+                "Failed to place sell order. etf_code=%s quantity=%s response=%s",
+                etf_code,
+                quantity,
+                data,
+            )
             return f"Error placing order: \n{data}"
 
+        logger.info("Placed sell order successfully. etf_code=%s quantity=%s response=%s", etf_code, quantity, data)
         return f"Order placed successfully: \n{data}"

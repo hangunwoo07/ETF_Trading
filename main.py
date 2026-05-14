@@ -2,10 +2,12 @@ from dotenv import load_dotenv
 import os
 from typing import Optional, List
 from Supervisor import Supervisor
+from logging_config import setup_logging
 import asyncio
 
 
 async def main():
+    setup_logging()
     load_dotenv()
     app_key: Optional[str] = os.getenv("APP_KEY")
     secret_key: Optional[str] = os.getenv("SECRET_KEY")

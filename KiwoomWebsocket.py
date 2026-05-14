@@ -1,6 +1,10 @@
 from typing import Optional
+import logging
 import websockets
 import json
+
+
+logger = logging.getLogger(__name__)
 
 
 class KiwoomWebsocketClient:
@@ -15,6 +19,7 @@ class KiwoomWebsocketClient:
     
     async def connect(self):
         try:
+            logger.info("Connecting Kiwoom websocket. socket_url=%s", self.socket_url)
             self.websocket = await websockets.connect(self.socket_url)
             self.connected = True
 
@@ -24,10 +29,12 @@ class KiwoomWebsocketClient:
             }
 
             await self.websocket.send(json.dumps(param))
+            logger.info("Sent websocket login message.")
         
-        except Exception as e:
-            print(f"Websocket connection error: {e}")
+        except Exception:
             self.connected = False
+            logger.exception("Websocket connection error. socket_url=%s", self.socket_url)
+            raise
     
     async def send_message(self, message: dict):
         if not self.connected:
@@ -35,9 +42,15 @@ class KiwoomWebsocketClient:
         
         try:
             await self.websocket.send(json.dumps(message))
+            logger.info(
+                "Sent websocket message. trnm=%s grp_no=%s",
+                message.get("trnm"),
+                message.get("grp_no"),
+            )
         
-        except Exception as e:
-            print(f"Error sending message: {e}")
+        except Exception:
+            logger.exception("Error sending websocket message. message=%s", message)
+            raise
     
     async def receive_message(self) -> Optional[dict]:
         if not self.connected:
@@ -50,13 +63,19 @@ class KiwoomWebsocketClient:
 
                 if message.get("trnm") == "PING":
                     await self.websocket.send(json.dumps(message))
+                    logger.info("Received websocket PING and sent heartbeat response.")
                     continue
 
+                logger.info(
+                    "Received websocket message. trnm=%s data_count=%s",
+                    message.get("trnm"),
+                    len(message.get("data", [])),
+                )
                 return message
         
-        except Exception as e:
+        except Exception:
             self.connected = False
-            print(f"Error receiving message: {e}")
+            logger.exception("Error receiving websocket message.")
             return None
     
     async def register_etf(self, etf_code: str):
@@ -73,6 +92,7 @@ class KiwoomWebsocketClient:
         }
 
         await self.send_message(request)
+        logger.info("Requested ETF realtime registration. etf_code=%s", etf_code)
     
     async def unregister_etf(self, etf_code: Optional[str]):
         if etf_code is None:
@@ -91,6 +111,7 @@ class KiwoomWebsocketClient:
         }
 
         await self.send_message(request)
+        logger.info("Requested ETF realtime unregistration. etf_code=%s", etf_code)
     
     async def register_market_time(self):
         request = {
@@ -106,6 +127,7 @@ class KiwoomWebsocketClient:
         }
 
         await self.send_message(request)
+        logger.info("Requested market-time realtime registration.")
 
 
 async def main():
@@ -118,19 +140,22 @@ async def main():
     await ws_client.connect()
 
     login_msg = await ws_client.receive_message()
-    print(f"LOGIN message: {login_msg}")
+    logger.info("LOGIN message: %s", login_msg)
 
     await ws_client.register_etf("091160")
-    print("Registered ETF for real-time updates.")
+    logger.info("Registered ETF for real-time updates.")
 
     reg_msg = await ws_client.receive_message()
-    print(f"REG message: {reg_msg}")
+    logger.info("REG message: %s", reg_msg)
 
     while True:
         msg = await ws_client.receive_message()
-        print(f"REALTIME message: {msg}")
+        logger.info("REALTIME message: %s", msg)
 
 
 if __name__ == "__main__":
     import asyncio
+    from logging_config import setup_logging
+
+    setup_logging()
     asyncio.run(main())
