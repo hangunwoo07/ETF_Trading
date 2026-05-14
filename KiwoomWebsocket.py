@@ -63,7 +63,7 @@ class KiwoomWebsocketClient:
 
                 if message.get("trnm") == "PING":
                     await self.websocket.send(json.dumps(message))
-                    logger.info("Received websocket PING and sent heartbeat response.")
+                    # logger.info("Received websocket PING and sent heartbeat response.")
                     continue
 
                 logger.info(
