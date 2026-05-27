@@ -1,7 +1,9 @@
 from typing import Optional
+from config import MARKET_TIME_TYPE, ETF_REALTIME_TYPE
 import logging
 import websockets
 import json
+import asyncio
 
 
 logger = logging.getLogger(__name__)
@@ -16,6 +18,12 @@ class KiwoomWebsocketClient:
         self.connected = False
         self.keep_running = True
         self.access_token = access_token
+
+        self.login_queue = asyncio.Queue()
+        self.register_queue = asyncio.Queue()
+        self.market_time_queue = asyncio.Queue()
+        self.etf_tick_queue = asyncio.Queue()
+        self.unknown_message_queue = asyncio.Queue()
     
     async def connect(self):
         try:
@@ -30,6 +38,8 @@ class KiwoomWebsocketClient:
 
             await self.websocket.send(json.dumps(param))
             logger.info("Sent websocket login message.")
+
+            self.receiver_task = asyncio.create_task(self._receive_loop())
         
         except Exception:
             self.connected = False
@@ -52,7 +62,7 @@ class KiwoomWebsocketClient:
             logger.exception("Error sending websocket message. message=%s", message)
             raise
     
-    async def receive_message(self) -> Optional[dict]:
+    async def _receive_one_message(self) -> Optional[dict]:
         if not self.connected:
             raise RuntimeError("Websocket is not connected.")
         
@@ -78,6 +88,50 @@ class KiwoomWebsocketClient:
             logger.exception("Error receiving websocket message.")
             return None
     
+    async def _receive_loop(self) -> None:
+        while True:
+            message = await self._receive_one_message()
+
+            if message is None:
+                continue
+
+            if message.get("trnm") == "LOGIN":
+                await self.login_queue.put(message)
+            elif message.get("trnm") == "REG":
+                await self.register_queue.put(message)
+            elif message.get("trnm") == "REAL":
+                data_entries = message.get("data") or []
+                if not isinstance(data_entries, list):
+                    continue
+
+                for entry in data_entries:
+                    if not isinstance(entry, dict):
+                        continue
+
+                    message_type = entry.get("type")
+                    if message_type == MARKET_TIME_TYPE:
+                        await self.market_time_queue.put(message)
+                    elif message_type == ETF_REALTIME_TYPE:
+                        await self.etf_tick_queue.put(message)
+            else:
+                await self.unknown_message_queue.put(message)
+    
+    async def wait_for_login(self, timeout: float = 10):
+        """Waits for a LOGIN message from asyncio queue. Raises TimeoutError if timeout is reached."""
+        return await asyncio.wait_for(self.login_queue.get(), timeout=timeout)
+    
+    async def wait_for_register(self, timeout: float = 10):
+        """Waits for a REG message from asyncio queue. Raises TimeoutError if timeout is reached."""
+        return await asyncio.wait_for(self.register_queue.get(), timeout=timeout)
+    
+    async def wait_for_market_time(self, timeout: float = 10):
+        """Waits for a market time message from asyncio queue. Raises TimeoutError if timeout is reached."""
+        return await asyncio.wait_for(self.market_time_queue.get(), timeout=timeout)
+
+    async def wait_for_etf_tick(self, timeout: float = 10):
+        """Waits for an ETF tick message from asyncio queue. Raises TimeoutError if timeout is reached."""
+        return await asyncio.wait_for(self.etf_tick_queue.get(), timeout=timeout)
+
     async def register_etf(self, etf_code: str):
         request = {
             "trnm": "REG",
@@ -86,7 +140,7 @@ class KiwoomWebsocketClient:
             "data": [
                 {
                     "item": [etf_code],
-                    "type": ["0B"]
+                    "type": [ETF_REALTIME_TYPE]
                 }
             ]
         }
@@ -105,7 +159,7 @@ class KiwoomWebsocketClient:
             "data": [
                 {
                     "item": [etf_code],
-                    "type": ["0B"]
+                    "type": [ETF_REALTIME_TYPE]
                 }
             ]
         }
@@ -121,7 +175,7 @@ class KiwoomWebsocketClient:
             "data": [
                 {
                     "item": [""],
-                    "type": ["0s"]
+                    "type": [MARKET_TIME_TYPE]
                 }
             ]
         }
@@ -139,17 +193,17 @@ async def main():
     ws_client = KiwoomWebsocketClient(is_mock=True, access_token=access_token)
     await ws_client.connect()
 
-    login_msg = await ws_client.receive_message()
+    login_msg = await ws_client.wait_for_login()
     logger.info("LOGIN message: %s", login_msg)
 
     await ws_client.register_etf("091160")
     logger.info("Registered ETF for real-time updates.")
 
-    reg_msg = await ws_client.receive_message()
+    reg_msg = await ws_client.wait_for_register()
     logger.info("REG message: %s", reg_msg)
 
     while True:
-        msg = await ws_client.receive_message()
+        msg = await ws_client.wait_for_etf_tick()
         logger.info("REALTIME message: %s", msg)
 
 

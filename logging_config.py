@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timedelta, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -6,12 +7,21 @@ from pathlib import Path
 LOG_DIR = Path("logs")
 GENERAL_LOG_FILE = LOG_DIR / "tradingbot.log"
 ERROR_LOG_FILE = LOG_DIR / "tradingbot_error.log"
+KST = timezone(timedelta(hours=9), "KST")
+
+
+class KSTFormatter(logging.Formatter):
+    def formatTime(self, record: logging.LogRecord, datefmt: str | None = None) -> str:
+        record_time = datetime.fromtimestamp(record.created, tz=KST)
+        if datefmt:
+            return record_time.strftime(datefmt)
+        return f"{record_time:%Y-%m-%d %H:%M:%S},{int(record.msecs):03d} GMT+9"
 
 
 def setup_logging() -> None:
     LOG_DIR.mkdir(exist_ok=True)
 
-    formatter = logging.Formatter(
+    formatter = KSTFormatter(
         "%(asctime)s [%(levelname)s] %(name)s - %(message)s"
     )
 
